@@ -1,0 +1,45 @@
+name: Convert JPEG images to WebP
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions: write-all
+
+jobs:
+  convert:
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install WebP tools
+        run: brew install webp
+
+      - name: Convert JPEG to WebP and remove originals
+        run: |
+          mkdir -p converted
+          find . -type f \( -iname '*.jpg' -o -iname '*.jpeg' \) | while read img; do
+            filename=$(basename "$img")
+            name="${filename%.*}"
+            cwebp -q 80 "$img" -o "converted/${name}.webp"
+          done
+          # Replace originals with only .webp
+          find . -type f \( -iname '*.jpg' -o -iname '*.jpeg' \) -delete
+          cp -r converted/* .
+          rm -rf converted
+
+      - name: Generate list
+        run: |
+          find . -type f -iname '*.webp' | sort -V > list.txt
+
+      - name: Commit to `webp` branch
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B webp
+          git add -A
+          git diff-index --quiet HEAD || git commit --amend -m "Initial commit"
+          git push origin webp --force
